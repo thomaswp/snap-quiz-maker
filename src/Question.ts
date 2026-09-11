@@ -21,12 +21,17 @@ export interface Section {
 
 class TextSection implements Section {
     readonly text: string;
+    readonly isMarkdown: boolean;
 
-    constructor(text: string) {
+    constructor(text: string, isMarkdown: boolean) {
         this.text = text;
+        this.isMarkdown = isMarkdown;
     }
 
     renderHTML(): string {
+        if (!this.isMarkdown) {
+            return `<p>${htmlEncode(this.text).replace(/\n/g, '<br>')}</p>`;
+        }
         return marked.parse(this.text) as string;
     }
 }
@@ -54,6 +59,20 @@ class ImageSection implements Section {
         return new ImageSection(imageDataURL, altText);
     }
 
+    static fromBlock(block: BlockMorph): ImageSection {
+        let imageDataURL = "";
+        try {
+            const canvas = block.scriptPic();
+            imageDataURL = canvas.toDataURL();
+        } catch (error) {
+            console.error("Error creating code section:", error);
+            imageDataURL = "";
+        }
+        // TODO: Generate actual text
+        const altText = block.toLisp();
+        return new ImageSection(imageDataURL, altText);
+    }
+
     static fromScript(blocks: BlockMorph[]) {
         // Temporarily remove the next block to avoid including it in the image
         let lastTopBlock = blocks[0];
@@ -67,23 +86,13 @@ class ImageSection implements Section {
             lastTopBlock.children.splice(nextBlockIndex, 1);
         }
 
-        let imageDataURL = "";
-        try {
-            const canvas = blocks[0].scriptPic();
-            imageDataURL = canvas.toDataURL();
-        } catch (error) {
-            console.error("Error creating code section:", error);
-            imageDataURL = "";
-        }
-        // TODO: Generate actual text
-        const altText = blocks[0].toLisp();
+        const imageSection = ImageSection.fromBlock(blocks[0]);
 
         // Then add the next block back to the end of the top block's children
         if (nextBlock && nextBlockIndex !== -1) {
             lastTopBlock.children.splice(nextBlockIndex, 0, nextBlock);
         }
-
-        return new ImageSection(imageDataURL, altText);
+        return imageSection;
     }
 
     static fromCostume(costume: Costume): ImageSection {
@@ -121,11 +130,11 @@ export class Content {
 
         while (block) {
             if (block instanceof BlockMorph) {
-                if (block.blockSpec.startsWith("Text")) {
+                if (block.blockSpec.startsWith("Text") || block.blockSpec.startsWith("Plain text")) {
                     flushCurrentScript();
                     try {
                         const text = block.inputs()[0].evaluate();
-                        this.sections.push(new TextSection(text));
+                        this.sections.push(new TextSection(text, block.blockSpec.startsWith("Text")));
                     } catch (error) {
                         console.error("Error evaluating text block:", error);
                     }
@@ -157,6 +166,18 @@ export class Content {
                         }
                     } catch (error) {
                         console.error("Error evaluating costume pic block:", error);
+                    }
+                } else if (block.blockSpec.startsWith("Reporter expression")) {
+                    try {
+                        const ring = block.inputs()[0];
+                        const innerRing = ring?.inputs()[0];
+                        const expression = innerRing?.inputs()[0];
+                        if (expression) {
+                            flushCurrentScript();
+                            this.sections.push(ImageSection.fromBlock(expression));
+                        }
+                    } catch (error) {
+                        console.error("Error evaluating reporter expression block:", error);
                     }
                 } else {
                     currentScript.push(block);
