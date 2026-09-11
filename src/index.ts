@@ -1,13 +1,11 @@
 import { Extension, Events, Snap } from "sef";
-import { BlockMorph } from "sef/src/snap/Snap";
+import { Question } from "./Question";
 
 function inspect() {
     Snap.sprites.forEach(sprite => {
         console.log(sprite.name);
-        sprite.scripts.children.forEach((script: BlockMorph) => {
-            const xml = script.toScriptXML(Snap.IDE.serializer);
-            console.log(xml);
-        });
+        const q = new Question(sprite);
+        console.log(q.renderHTML());
     });
 }
 
