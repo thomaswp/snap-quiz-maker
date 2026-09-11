@@ -1,6 +1,7 @@
-import { Extension, Snap } from "sef";
+import { Events, Extension, Snap } from "sef";
 import { Question } from "./Question";
 import { HTMLDisplay } from "./Display";
+import { IDE_Morph } from "sef/src/snap/Snap";
 
 
 function inspect(display: HTMLDisplay) {
@@ -20,10 +21,13 @@ export class SnapQuiz extends Extension {
 
         const display = new HTMLDisplay();
         this.events.Trace.addGlobalListener(() => {
+            setTimeout(() => {
+                inspect(display);
+            });
+        });
+        setTimeout(() => {
             inspect(display);
         });
-        // this.events.addListener(new Events.IDE.GreenFlagListener(() => inspect(display)));
-
     }
 }
 

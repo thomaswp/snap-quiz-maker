@@ -60,6 +60,7 @@ export class HTMLDisplay {
         this.panel.style.zIndex = "1000";
         this.panel.style.padding = "10px";
         this.panel.style.boxSizing = "border-box";
+        this.panel.style.fontFamily = "Arial, sans-serif";
         document.body.appendChild(this.panel);
 
         Snap.world.fillPage();

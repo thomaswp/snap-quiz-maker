@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import { BlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
+import { BlockMorph, CustomBlockDefinition, PrototypeHatBlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
 
 function htmlEncode(str: string): string {
   const entityMap: Record<string, string> = {
@@ -30,25 +30,59 @@ class TextSection implements Section {
     }
 }
 
-class CodeSection implements Section {
-    readonly imageDataURL: string;
+class ImageSection implements Section {
+    readonly imageDataURL: string
     readonly altText: string;
 
-    constructor(blocks: BlockMorph[]) {
-        // TODO: Filter unused blocks
-        try {
-            const canvas = blocks[0].scriptPic();
-            this.imageDataURL = canvas.toDataURL();
-        } catch (error) {
-            console.error("Error creating code section:", error);
-            this.imageDataURL = "";
-        }
-        // TODO: Generate actual text
-        this.altText = blocks[0].toLisp();
+    constructor(imageDataURL: string, altText: string) {
+        this.imageDataURL = imageDataURL;
+        this.altText = altText;
     }
 
     renderHTML(): string {
-        return `<img src="${this.imageDataURL}" alt="${htmlEncode(this.altText)}"/>`;
+        const alt = htmlEncode(this.altText);
+        return `<img src="${this.imageDataURL}" alt="${alt}" title="${alt}">`;
+    }
+
+    static fromCustomBlockDefinition(definition: CustomBlockDefinition): ImageSection {
+        const proto = new PrototypeHatBlockMorph(definition);
+        proto.nextBlock(definition.body.expression.fullCopy());
+        proto.fixLayout();
+        const imageDataURL = proto.scriptPic().toDataURL();
+        const altText = proto.toLisp();
+        return new ImageSection(imageDataURL, altText);
+    }
+
+    static fromScript(blocks: BlockMorph[]) {
+        // Temporarily remove the next block to avoid including it in the image
+        let lastTopBlock = blocks[0];
+        while (lastTopBlock.nextBlock() && blocks.includes(lastTopBlock.nextBlock() as BlockMorph)) {
+            lastTopBlock = lastTopBlock.nextBlock() as BlockMorph;
+        }
+        const nextBlock = lastTopBlock.nextBlock();
+        let nextBlockIndex = -1;
+        if (nextBlock) {
+            nextBlockIndex = lastTopBlock.children.indexOf(nextBlock);
+            lastTopBlock.children.splice(nextBlockIndex, 1);
+        }
+
+        let imageDataURL = "";
+        try {
+            const canvas = blocks[0].scriptPic();
+            imageDataURL = canvas.toDataURL();
+        } catch (error) {
+            console.error("Error creating code section:", error);
+            imageDataURL = "";
+        }
+        // TODO: Generate actual text
+        const altText = blocks[0].toLisp();
+
+        // Then add the next block back to the end of the top block's children
+        if (nextBlock && nextBlockIndex !== -1) {
+            lastTopBlock.children.splice(nextBlockIndex, 0, nextBlock);
+        }
+
+        return new ImageSection(imageDataURL, altText);
     }
 }
 
@@ -74,7 +108,7 @@ export class Content {
         let currentScript: BlockMorph[] = [];
         const flushCurrentScript = () => {
             if (currentScript.length > 0) {
-                this.sections.push(new CodeSection(currentScript));
+                this.sections.push(ImageSection.fromScript(currentScript));
                 currentScript = [];
             }
         }
@@ -89,6 +123,20 @@ export class Content {
                     } catch (error) {
                         console.error("Error evaluating text block:", error);
                     }
+                } else if (block.blockSpec.startsWith("Custom block pic")) {
+                    try {
+                        const ring = block.inputs()[0];
+                        const innerRing = ring?.inputs()[0];
+                        const customBlockCall = innerRing?.inputs()[0];
+                        if (customBlockCall?.definition) {
+                            flushCurrentScript();
+                            this.sections.push(ImageSection.fromCustomBlockDefinition(customBlockCall.definition));
+                        } else {
+                            console.error("Custom block call not found in Custom block pic block.");
+                        }
+                    } catch (error) {
+                        console.error("Error evaluating text block:", error);
+                    }
                 } else {
                     currentScript.push(block);
                 }
@@ -99,7 +147,7 @@ export class Content {
     }
 
     renderHTML(): string {
-        let html = "<div>";
+        let html = "<div style='border: 1px solid #ccc; padding: 3px; border-radius: 3px;'>";
         for (const section of this.sections) {
             html += section.renderHTML();
         }
@@ -116,7 +164,9 @@ export class Question {
     constructor(sprite: SpriteMorph | StageMorph) {
         this.name = sprite.name;
         this.answers = [];
-        sprite.scripts.children.forEach((topBlock: any) => {
+        const topBlocks = sprite.scripts.children.filter((block: any) => block instanceof BlockMorph);
+        topBlocks.sort((a: BlockMorph, b: BlockMorph) => a.id - b.id);
+        topBlocks.forEach((topBlock: any) => {
             if (!(topBlock instanceof BlockMorph)) {
                 return;
             }
@@ -142,7 +192,8 @@ export class Question {
             html += this.question.renderHTML();
         }
         for (const answer of this.answers) {
-            html += `<h3>Answer${this.makeCopyButton()}</h3>`;
+            const isCorrect = answer.contentType === ContentType.CorrectAnswer;
+            html += `<h3>Answer ${isCorrect ? '✓' : '✗'} ${this.makeCopyButton()}</h3>`;
             html += answer.renderHTML();
         }
         return html;
