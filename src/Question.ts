@@ -1,4 +1,18 @@
+import { marked } from 'marked';
 import { BlockMorph, SpriteMorph } from "sef/src/snap/Snap";
+
+function htmlEncode(str: string): string {
+  const entityMap: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  };
+
+  return String(str).replace(/[&<>"']/g, match => entityMap[match]);
+}
+
 
 export interface Section {
     renderHTML(): string;
@@ -12,8 +26,7 @@ class TextSection implements Section {
     }
 
     renderHTML(): string {
-        // TODO: Markdown
-        return `<p>${this.text}</p>`;
+        return marked.parse(this.text) as string;
     }
 }
 
@@ -35,7 +48,7 @@ class CodeSection implements Section {
     }
 
     renderHTML(): string {
-        return `<img src="${this.imageDataURL}" alt="${this.altText}">`;
+        return `<img src="${this.imageDataURL}" alt="${htmlEncode(this.altText)}"/>`;
     }
 }
 
@@ -45,7 +58,6 @@ enum ContentType {
     IncorrectAnswer
 }
 
-// Maybe question/correct/prompt should just be properties rather than classes...
 export class Content {
     readonly topBlock: BlockMorph;
     readonly sections: Section[];
