@@ -1,0 +1,3 @@
+[submodule "sef"]
+	path = sef
+	url = https://github.com/thomaswp/SnapExtensionFramework.git
