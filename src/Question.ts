@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import { BlockMorph, SpriteMorph } from "sef/src/snap/Snap";
+import { BlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
 
 function htmlEncode(str: string): string {
   const entityMap: Record<string, string> = {
@@ -113,7 +113,7 @@ export class Question {
     question?: Content;
     answers: Content[];
 
-    constructor(sprite: SpriteMorph) {
+    constructor(sprite: SpriteMorph | StageMorph) {
         this.name = sprite.name;
         this.answers = [];
         sprite.scripts.children.forEach((topBlock: any) => {
@@ -131,15 +131,60 @@ export class Question {
         });
     }
 
+    makeCopyButton() {
+        return `<button style="margin-left: 10px;" onclick="copyNextDivToClipboard(this)">📋</button>`;
+    }
+
     renderHTML(): string {
         let html = `<h2>${this.name}</h2>`;
         if (this.question) {
+            html += `<h3>Prompt${this.makeCopyButton()}</h3>`;
             html += this.question.renderHTML();
         }
         for (const answer of this.answers) {
-            html += "<h3>Answer</h3>";
+            html += `<h3>Answer${this.makeCopyButton()}</h3>`;
             html += answer.renderHTML();
         }
         return html;
     }
 }
+
+export async function copyHtmlToClipboard(htmlString: string) {
+  try {
+    const instantiated = new DOMParser().parseFromString(htmlString, "text/html");
+    const fallback = instantiated.body.textContent || instantiated.body.innerText || "";
+
+    // 1. Create Blobs for both HTML and plain text formats
+    const htmlBlob = new Blob([htmlString], { type: "text/html" });
+    const textBlob = new Blob([fallback], { type: "text/plain" });
+
+    // 2. Wrap them inside a ClipboardItem object
+    const clipboardItem = new ClipboardItem({
+      "text/html": htmlBlob,
+      "text/plain": textBlob
+    });
+
+    // 3. Write the item to the native clipboard
+    await navigator.clipboard.write([clipboardItem]);
+    console.log("HTML successfully copied to clipboard!");
+  } catch (error) {
+    console.error("Failed to copy HTML: ", error);
+  }
+}
+
+declare global {
+    interface Window {
+        copyNextDivToClipboard: (button: HTMLButtonElement) => void;
+    }
+}
+
+window.copyNextDivToClipboard = function(button: HTMLButtonElement) {
+    const header = button.parentElement;
+    if (header) {
+        const nextDiv = header.nextElementSibling;
+        if (nextDiv) {
+            const div = nextDiv as HTMLDivElement;
+            copyHtmlToClipboard(div.outerHTML);
+        }
+    }
+};

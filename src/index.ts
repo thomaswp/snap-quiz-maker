@@ -1,39 +1,15 @@
-import { Extension, Events, Snap } from "sef";
+import { Extension, Snap } from "sef";
 import { Question } from "./Question";
+import { HTMLDisplay } from "./Display";
 
-async function copyHtmlToClipboard(htmlString: string) {
-  try {
-    const instantiated = new DOMParser().parseFromString(htmlString, "text/html");
-    const fallback = instantiated.body.textContent || instantiated.body.innerText || "";
 
-    // 1. Create Blobs for both HTML and plain text formats
-    const htmlBlob = new Blob([htmlString], { type: "text/html" });
-    const textBlob = new Blob([fallback], { type: "text/plain" });
-
-    // 2. Wrap them inside a ClipboardItem object
-    const clipboardItem = new ClipboardItem({
-      "text/html": htmlBlob,
-      "text/plain": textBlob
-    });
-
-    // 3. Write the item to the native clipboard
-    await navigator.clipboard.write([clipboardItem]);
-    console.log("HTML successfully copied to clipboard!");
-  } catch (error) {
-    console.error("Failed to copy HTML: ", error);
-  }
+function inspect(display: HTMLDisplay) {
+    const sprite = Snap.currentSprite
+    const q = new Question(sprite);
+    const html = q.renderHTML();
+    display.setContent(html);
 }
 
-
-function inspect() {
-    Snap.sprites.forEach(sprite => {
-        console.log(sprite.name);
-        const q = new Question(sprite);
-        const html = q.renderHTML();
-        console.log(html);
-        copyHtmlToClipboard(html);
-    });
-}
 
 export class SnapQuiz extends Extension {
 
@@ -42,10 +18,12 @@ export class SnapQuiz extends Extension {
         console.log("SnapQuiz extension initialized");
 
 
+        const display = new HTMLDisplay();
         this.events.Trace.addGlobalListener(() => {
-
+            inspect(display);
         });
-        this.events.addListener(new Events.IDE.GreenFlagListener(() => inspect()));
+        // this.events.addListener(new Events.IDE.GreenFlagListener(() => inspect(display)));
+
     }
 }
 
