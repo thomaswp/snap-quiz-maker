@@ -1,5 +1,6 @@
 import { marked } from 'marked';
-import { BlockMorph, CustomBlockDefinition, PrototypeHatBlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
+import { Snap } from 'sef';
+import { BlockMorph, Costume, CustomBlockDefinition, PrototypeHatBlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
 
 function htmlEncode(str: string): string {
   const entityMap: Record<string, string> = {
@@ -84,6 +85,11 @@ class ImageSection implements Section {
 
         return new ImageSection(imageDataURL, altText);
     }
+
+    static fromCostume(costume: Costume): ImageSection {
+        // pictures have to be done manually
+        return new ImageSection(costume.pngData(), "");
+    }
 }
 
 enum ContentType {
@@ -136,6 +142,21 @@ export class Content {
                         }
                     } catch (error) {
                         console.error("Error evaluating text block:", error);
+                    }
+                } else if (block.blockSpec.startsWith("Costume pic")) {
+                    try {
+                        const costumeName = block.inputs()[0].evaluate();
+                        const sprite = Snap.currentSprite;
+                        const costume = sprite.costumes.asArray().find((c: Costume) => c.name === costumeName);
+                        if (!costume || !costume.contents) {
+                            console.error(`Costume with name "${costumeName}" not found.`);
+                        } else {
+                            flushCurrentScript();
+                            console.log(costume);
+                            this.sections.push(ImageSection.fromCostume(costume));
+                        }
+                    } catch (error) {
+                        console.error("Error evaluating costume pic block:", error);
                     }
                 } else {
                     currentScript.push(block);
