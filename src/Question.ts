@@ -1,6 +1,7 @@
 import { marked } from 'marked';
 import { Snap } from 'sef';
-import { BlockMorph, Costume, CustomBlockDefinition, PrototypeHatBlockMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
+import { BlockMorph, Costume, CustomBlockDefinition, PrototypeHatBlockMorph, RingMorph, SpriteMorph, StageMorph } from "sef/src/snap/Snap";
+import { toPseudocode } from './Pseudocode';
 
 function htmlEncode(str: string): string {
   const entityMap: Record<string, string> = {
@@ -55,7 +56,7 @@ class ImageSection implements Section {
         proto.nextBlock(definition.body.expression.fullCopy());
         proto.fixLayout();
         const imageDataURL = proto.scriptPic().toDataURL();
-        const altText = proto.toLisp();
+        const altText = toPseudocode(proto);
         return new ImageSection(imageDataURL, altText);
     }
 
@@ -68,8 +69,7 @@ class ImageSection implements Section {
             console.error("Error creating code section:", error);
             imageDataURL = "";
         }
-        // TODO: Generate actual text
-        const altText = block.toLisp();
+        const altText = toPseudocode(block);
         return new ImageSection(imageDataURL, altText);
     }
 
@@ -169,9 +169,11 @@ export class Content {
                     }
                 } else if (block.blockSpec.startsWith("Reporter expression")) {
                     try {
-                        const ring = block.inputs()[0];
-                        const innerRing = ring?.inputs()[0];
-                        const expression = innerRing?.inputs()[0];
+                        let expression: BlockMorph = block.inputs()[0];
+                        if (expression.inputs().length > 0) {
+                            const innerRing = expression.inputs()[0];
+                            expression = innerRing?.inputs()[0];
+                        }
                         if (expression) {
                             flushCurrentScript();
                             this.sections.push(ImageSection.fromBlock(expression));
